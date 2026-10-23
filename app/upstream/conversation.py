@@ -17,6 +17,11 @@ class ConversationEntry:
     created_at: float = field(default_factory=time.time)
     last_used_at: float = field(default_factory=time.time)
     turns: int = 0
+    #: 单调递增的“第几次被使用”序号（只增不减）。LRU 淘汰只看它：
+    #: Windows 上 Python < 3.13 的 ``time.time()`` 精度只有 ~15.6ms，同一 tick
+    #: 内写入的条目时间戳完全相同，按时间戳淘汰会退化成“按插入顺序”，
+    #: 把刚用过的会话踢掉（CI 的 windows-latest / py3.11 曾因此失败）。
+    last_used_seq: int = 0
 
 
 class ConversationStore:
@@ -28,6 +33,8 @@ class ConversationStore:
         self.cache_size = max(1, int(cache_size))
         self.ttl_seconds = max(1, int(ttl_seconds))
         self._entries: dict[str, ConversationEntry] = {}
+        #: LRU 序号发生器（见 ConversationEntry.last_used_seq）
+        self._access_seq = 0
 
     # -- key 推导 ---------------------------------------------------------
     @staticmethod
@@ -93,19 +100,24 @@ class ConversationStore:
         if time.time() - entry.last_used_at > self.ttl_seconds:
             self._entries.pop(key, None)
             return None
-        entry.last_used_at = time.time()
-        return entry
+        return self._touch(entry)
 
     def set(self, key: str, upstream_id: str) -> ConversationEntry:
         entry = self._entries.get(key)
         if entry is None:
-            entry = ConversationEntry(upstream_id=upstream_id)
-            self._entries[key] = entry
+            entry = self._entries[key] = ConversationEntry(upstream_id=upstream_id)
         else:
             entry.upstream_id = upstream_id
-            entry.last_used_at = time.time()
         entry.turns += 1
+        self._touch(entry)
         self._evict()
+        return entry
+
+    def _touch(self, entry: ConversationEntry) -> ConversationEntry:
+        """标记“被使用”：刷新 TTL 时间戳，并分配最新的 LRU 序号。"""
+        self._access_seq += 1
+        entry.last_used_seq = self._access_seq
+        entry.last_used_at = time.time()
         return entry
 
     def drop(self, key: str) -> None:
@@ -127,5 +139,7 @@ class ConversationStore:
         for key in [k for k, e in self._entries.items() if now - e.last_used_at > self.ttl_seconds]:
             self._entries.pop(key, None)
         while len(self._entries) > self.cache_size:
-            oldest = min(self._entries.items(), key=lambda item: item[1].last_used_at)[0]
+            # 只按访问序号淘汰（不按时间戳）：同 tick 内的条目序号仍然唯一，
+            # 结果与系统时钟精度无关。
+            oldest = min(self._entries.items(), key=lambda item: item[1].last_used_seq)[0]
             self._entries.pop(oldest, None)

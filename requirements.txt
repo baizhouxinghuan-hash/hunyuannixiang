@@ -1,5 +1,10 @@
+# -*- coding: utf-8 -*-
 # AI Studio Web 协议分析与 OpenAI-Compatible 本地 API
 # 版本按本机实测可用的环境锁定（Windows / Python 3.13）
+#
+# 注意：本文件含中文注释且**不带 BOM**。首行的 PEP 263 coding 声明是必需的——
+#       中文 Windows 的 pip 默认按 GBK(cp936) 解码 requirements.txt，缺少该声明时
+#       会直接报 UnicodeDecodeError: 'gbk' codec can't decode byte ...
 #
 # 说明：只列**代码里真的会 import** 的包（已用只读扫描核对过引用次数）。
 #       不再 pin starlette —— 交给 fastapi 的依赖约束决定，避免与其它包冲突。

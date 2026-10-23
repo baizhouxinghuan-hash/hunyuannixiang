@@ -59,14 +59,44 @@ def test_ttl_expiry_and_cache_eviction():
     store = ConversationStore("auto", cache_size=2, ttl_seconds=1)
     store.set("a", "conv-a")
     store.set("b", "conv-b")
-    assert store.get("a").upstream_id == "conv-a"
+    assert store.get("a").upstream_id == "conv-a"  # a 刚被使用 -> b 才是最久未用
 
-    store.set("c", "conv-c")  # 触发容量淘汰
+    store.set("c", "conv-c")  # 触发容量淘汰：必须淘汰 LRU 的 b，而不是刚用过 a
     assert store.stats()["size"] == 2
+    assert store.stats()["keys"] == ["a", "c"]
 
     store._entries["a"].last_used_at = time.time() - 10
     assert store.get("a") is None
     assert "a" not in store.stats()["keys"]
+
+
+class _FrozenClock:
+    """模拟 Windows 上 Python < 3.13 的粗粒度时钟（同一 tick 内返回值完全相同）。"""
+
+    def __init__(self) -> None:
+        self.now = 1_700_000_000.0
+
+    def time(self) -> float:
+        return self.now
+
+
+def test_eviction_follows_lru_even_with_coarse_clock(monkeypatch):
+    """回归：LRU 淘汰不能依赖 ``time.time()`` 的精度。
+
+    Windows + Python 3.11/3.12 的 ``time.time()`` 只有 ~15.6ms 精度，同一 tick 内
+    写入的条目时间戳一模一样；旧实现按时间戳取 ``min`` 会退化成“按插入顺序”，
+    把刚 ``get()`` 过的会话踢掉（真实故障：CI 的 windows-latest / py3.11）。
+    """
+    from app.upstream import conversation as conversation_module
+
+    monkeypatch.setattr(conversation_module, "time", _FrozenClock())
+    store = ConversationStore("auto", cache_size=2, ttl_seconds=600)
+    store.set("a", "conv-a")
+    store.set("b", "conv-b")
+    assert store.get("a") is not None
+    store.set("c", "conv-c")
+    assert store.stats()["keys"] == ["a", "c"]
+
 
 
 def test_drop_and_clear():

@@ -51,6 +51,14 @@
 * `app/main.py`：CORS 在 `allow_origins=["*"]` 时不再同时开启 `allow_credentials`
   （浏览器会拒绝该组合）。
 * `tests/run_all.py`：补上 `test_tool_bridge` / `test_capture_cli_args` / `test_live_upstream`。
+* `app/upstream/conversation.py`：会话缓存淘汰改为按**访问序号**（LRU），不再按
+  `time.time()` 排序。Windows 上 Python < 3.13 的 `time.time()` 精度只有 ~15.6ms，
+  同一 tick 内插入的条目时间戳相同，旧实现会退化成“按插入顺序”淘汰，把刚用过
+  的会话踢掉（表现为多轮对话偶发丢上下文；CI `windows-latest / py3.11` 失败）。
+  新增 `tests/test_conversation.py::test_eviction_follows_lru_even_with_coarse_clock`。
+* `requirements.txt`：首行补 PEP 263 `# -*- coding: utf-8 -*-`。中文 Windows 的
+  pip 默认按 GBK(cp936) 解码依赖文件，缺该声明时 `pip install -r requirements.txt`
+  会直接报 `UnicodeDecodeError: 'gbk' codec can't decode byte ...`。
 
 ### Known limitations
 

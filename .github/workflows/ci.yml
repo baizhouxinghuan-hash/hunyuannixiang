@@ -43,7 +43,7 @@ jobs:
         run: python -m compileall -q app analyzer tools tests
 
       - name: Run offline tests
-        run: python -m pytest -q
+        run: python -m pytest -q --tb=short
 
       - name: Offline self-check
         run: python tools/selfcheck.py --offline
