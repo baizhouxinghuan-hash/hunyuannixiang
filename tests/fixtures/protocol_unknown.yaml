@@ -1,0 +1,52 @@
+# 测试夹具：模拟“协议尚未抓包确认”的场景（所有关键项都是 unknown/inferred）。
+# 真实档案 protocol/current/profile.yaml 已由抓包回填为 confirmed，
+# 因此“未确认必须报错”的断言改用本夹具，避免测试去打真实上游。
+protocol_version: "1"
+status: draft
+upstream:
+  base_url:
+    value: "https://api.hunyuan.tencent.com"
+    status: confirmed
+    evidence: "captures/baseline（抓包确认域名）"
+  api_prefix:
+    value: "/api"
+    status: confirmed
+    evidence: "同上"
+auth:
+  type: cookie
+  status: unknown
+  cookie_names: []
+  required_headers: {}
+  signed:
+    value: null
+    status: unknown
+endpoints:
+  send_message:
+    method: POST
+    path: "/api/new-portal/chat/{conversation_id}"
+    status: inferred
+    evidence: "测试夹具：模拟未回填"
+  stop_generation: {method: null, path: null, status: unknown}
+  history: {method: null, path: null, status: unknown}
+  models: {method: null, path: null, status: unknown}
+  user_info: {method: null, path: null, status: unknown}
+  upload: {method: null, path: null, status: unknown}
+  create_conversation: {method: null, path: null, status: unknown}
+  message_detail: {method: null, path: null, status: unknown}
+request_schema:
+  status: unknown
+  body_template: null
+response_schema:
+  status: unknown
+stream:
+  transport: unknown
+  parser: null
+  status: unknown
+  event_map: {}
+models: {}
+default_model: ""
+features:
+  image_input: {value: null, status: unknown}
+  file_upload: {value: null, status: unknown}
+  multi_turn: {value: null, status: unknown}
+notes: "仅供测试；不代表真实上游状态"

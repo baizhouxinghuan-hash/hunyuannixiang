@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# AI Studio Web -> OpenAI-Compatible 本地 API 配置
+#
+# 重要：upstream / endpoints / models 等“协议事实”不写在这里，
+#       而是放在 protocol/current/profile.yaml（由抓包结果回填）。
+#       本文件只放“运行参数”。
+# ---------------------------------------------------------------------------
+
+server:
+  host: 127.0.0.1
+  port: 1010
+  # 本地 API 鉴权：留空表示不校验（仅监听 127.0.0.1 时推荐）
+  api_keys:
+    - "12345678"
+  cors_origins:
+    - "*"
+
+upstream:
+  # 抓包确认（captures/baseline）：真实 API 域名是 api.hunyuan.tencent.com（跨域调用，
+  # Origin 仍是 aistudio.tencent.com）。此处仅作兜底，
+  # 实际以 protocol/current/profile.yaml 的 upstream.base_url 为准。
+  base_url: "https://api.hunyuan.tencent.com"
+  api_prefix: "/api"
+  # httpx | curl_cffi ；若上游基于 TLS 指纹风控则改成 curl_cffi
+  transport: httpx
+  impersonate: chrome
+  timeout: 60.0
+  stream_idle_timeout: 180.0
+  # 非流式请求（stream:false）的等待上限（秒）：
+  # 上游只有 SSE，非流式必须等整段生成完才能回一个 JSON；
+  # 超时返回 HTTP 504 + code=upstream_timeout，而不是让客户端自己超时断连。
+  # 注意：要小于客户端超时（AstrBot 的 OpenAI provider 默认 timeout=120），
+  # 这样客户端能收到明确错误，而不是"无声无响应"。
+  nonstream_timeout: 90.0
+  # 模拟浏览器的基础请求头（属推断，抓包确认后再收敛为最小集）
+  browser_headers: true
+
+auth:
+  # Playwright storage_state（用户自己登录后导出）
+  storage_state: "./secrets/storage_state.json"
+  # 持久化浏览器 Profile（tools/capture.py --interactive 使用，免重复登录）
+  browser_profile_dir: "./secrets/browser_profile"
+  # storage_state | cookie_header | none
+  mode: storage_state
+  # mode=cookie_header 时从 secrets/cookie_header.txt 读取
+  cookie_header_file: "./secrets/cookie_header.txt"
+
+model:
+  # 留空 = 用 protocol profile 里抓包确认到的默认模型
+  default: ""
+  # OpenAI 客户端模型名 -> 上游模型 ID；留空时原样透传
+  mapping: {}
+  # 上游思考强度。取值来自抓包（getChatConfig.thinkMode.options）：
+  #   no_think : 更快完成回答，适合日常问答与轻量任务（默认，对齐网页端 "No Think"）
+  #   high     : 提供更充分的思考与推理，适合复杂任务（实测单次可长达 3~4 分钟）
+  # 客户端若传 OpenAI 的 reasoning_effort，会覆盖本项：
+  #   minimal/low/medium -> no_think ；high -> high
+  effort: "no_think"
+  # 拼进 prompt 的 messages 文本上限（字符）；0 = 不限制
+  history_max_chars: 12000
+
+tools:
+  # off    : 丢弃 tools/tool_choice 并给告警（最诚实：上游工具协议未抓包确认）
+  # bridge : 本地桥接——把 tools 渲染进 prompt，再把模型输出的 JSON 解析成标准 tool_calls
+  #          （客户端侧体验与标准 OpenAI API 一致；属本地适配策略，见 docs/）
+  mode: bridge
+
+conversation:
+  # stateless : 【当前默认】每次请求都新建上游会话，回答完即弃；
+  #             这一次回答与上一次无关（无上下文），只发最新一条 prompt。
+  # auto      : 依据 X-Session-Id / user / 首条 user 消息复用上游会话（可得到多轮记忆）
+  # explicit  : 仅当请求显式带 conversation_id 时复用
+  mode: stateless
+  # 仅 auto 模式使用；stateless 下不会再读写会话缓存
+  # 本地会话缓存上限与 TTL（秒）
+  cache_size: 128
+  ttl_seconds: 3600
+
+stream:
+  enabled: true
+
+rate_limit:
+  # 网页端通常单并发，默认串行，避免触发风控 / 重复扣额度
+  enabled: true
+  max_concurrency: 1
+  # 排队等待上限（秒）：排队超时返回 429 + Retry-After（0 = 无限等待）
+  max_wait_seconds: 120.0
+
+reasoning:
+  # passthrough   : 透传为 reasoning_content（OpenAI 扩展字段）
+  # drop          : 丢弃思考内容
+  # as_text       : 作为普通正文输出
+  # fallback_text : 平时同 passthrough；仅当上游只回思考、正文为空时，用思考兜底当正文
+  #                 （这是本代理的本地兜底策略，不是上游行为）
+  # 当前设为 fallback_text：避免"上游只思考、正文为空"时客户端显示空白。
+  mode: fallback_text
+
+protocol:
+  profile: "./protocol/current/profile.yaml"
+  snapshot: "./protocol/current/schema_fingerprint.json"
+  # 启动时指纹不一致 -> WARNING: upstream protocol changed
+  warn_on_change: true
+
+logging:
+  level: INFO
+  dir: "./logs"
+  max_bytes: 5242880
+  backup_count: 3

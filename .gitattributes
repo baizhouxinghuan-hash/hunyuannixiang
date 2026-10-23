@@ -1,0 +1,28 @@
+# 默认按文本处理，避免 Windows / Linux 换行差异造成整文件 diff
+* text=auto eol=lf
+
+# 批处理必须保持 CRLF（cmd.exe 对 LF 结尾的 .bat 有兼容问题）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Python / 配置 / 文档
+*.py text
+*.yaml text
+*.yml text
+*.md text
+*.txt text
+*.json text
+*.ini text
+
+# 二进制
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+
+# 抓包产物是数据，不做 diff
+*.har -diff
+captures/** -diff

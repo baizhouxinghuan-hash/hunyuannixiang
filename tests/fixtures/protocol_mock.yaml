@@ -1,0 +1,112 @@
+# ===========================================================================
+# 【仅测试用】mock 上游协议档案
+#
+# 警告：此文件描述的是 tests/fixtures/mock_upstream.py 这个“假上游”的协议，
+#       它【不是】AI Studio 的真实协议。真实协议必须由抓包确认后写入
+#       protocol/current/profile.yaml。
+#
+# 它的用途：在没有用户登录会话的情况下，验证
+#   OpenAI Adapter -> Client -> 流式解析器 -> FastAPI -> 错误映射
+# 这条链路本身是否正确。
+# ===========================================================================
+protocol_version: "mock-1"
+status: frozen
+generated_at: "2026-09-16"
+
+upstream:
+  base_url:
+    value: "http://127.0.0.1:8099"
+    status: confirmed
+    evidence: "test fixture"
+  api_prefix:
+    value: "/api"
+    status: confirmed
+    evidence: "test fixture"
+
+auth:
+  type: cookie
+  status: confirmed
+  evidence: "test fixture"
+  cookie_names: ["mock_session"]
+  required_headers: {}
+  signed:
+    value: false
+    status: confirmed
+    evidence: "test fixture"
+
+endpoints:
+  send_message:
+    method: POST
+    path: "/api/new-portal/chat"
+    status: confirmed
+    evidence: "test fixture"
+  stop_generation:
+    method: POST
+    path: "/api/new-portal/stop/chat"
+    status: confirmed
+    evidence: "test fixture"
+  models:
+    method: GET
+    path: "/api/models"
+    status: confirmed
+    evidence: "test fixture"
+  user_info:
+    method: GET
+    path: "/api/new-portal/getuserinfo"
+    status: confirmed
+    evidence: "test fixture"
+
+request_schema:
+  status: confirmed
+  history_mode: prompt_only
+  # 测试用：system 消息策略与可透传参数
+  system_mode: fold_into_user
+  passthrough_params: ["temperature"]
+  body_template:
+    conversation_id: "{conversation_id}"
+    model: "{model}"
+    prompt: "{prompt}"
+    stream: "{stream}"
+    effort: "{effort}"
+  stop_body_template:
+    conversation_id: "{conversation_id}"
+
+response_schema:
+  status: confirmed
+  content_paths: ["$.data.content", "$.content"]
+  conversation_id_paths: ["$.data.conversation_id", "$.conversation_id"]
+  message_id_paths: ["$.data.message_id", "$.message_id"]
+  finish_paths: ["$.data.finish_reason", "$.finish_reason"]
+  usage_paths: ["$.data.usage", "$.usage"]
+
+stream:
+  transport: sse
+  parser: sse
+  status: confirmed
+  evidence: "test fixture"
+  done_marker: "[DONE]"
+  event_map:
+    text: ["$.delta.content", "$.content"]
+    reasoning: ["$.delta.reasoning"]
+    finish: ["$.delta.finish_reason", "$.finish_reason"]
+    usage: ["$.usage"]
+    conversation_id: ["$.conversation_id"]
+    message_id: ["$.message_id"]
+  event_name_map:
+    ping: ignore
+    text: text
+    finish: finish
+
+models:
+  mock-chat: mock-chat-v1
+default_model: "mock-chat-v1"
+
+features:
+  streaming: {value: true, status: confirmed, evidence: "test fixture"}
+  reasoning: {value: true, status: confirmed, evidence: "test fixture"}
+  stop_generation: {value: true, status: confirmed, evidence: "test fixture"}
+  multi_turn: {value: true, status: confirmed, evidence: "test fixture"}
+  file_upload: {value: false, status: confirmed, evidence: "test fixture"}
+  image_input: {value: false, status: confirmed, evidence: "test fixture"}
+
+notes: "仅供离线单测使用；不得据此声称任何 AI Studio 真实协议结论。"

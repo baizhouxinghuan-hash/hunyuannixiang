@@ -1,0 +1,34 @@
+# AI Studio Web 协议分析与 OpenAI-Compatible 本地 API
+# 版本按本机实测可用的环境锁定（Windows / Python 3.13）
+#
+# 说明：只列**代码里真的会 import** 的包（已用只读扫描核对过引用次数）。
+#       不再 pin starlette —— 交给 fastapi 的依赖约束决定，避免与其它包冲突。
+
+# ---------------- 核心（必装）----------------
+fastapi==0.115.6
+uvicorn==0.34.0
+pydantic==2.12.4
+PyYAML==6.0.3
+httpx==0.28.1
+
+# ---------------- 协议分析（抓包用）----------------
+playwright==1.58.0
+
+# ---------------- 可选 ----------------
+# 当 httpx 的 TLS 指纹被上游风控拦截时改用 curl_cffi impersonate
+curl_cffi==0.14.0
+# 测试
+pytest>=8.0
+
+# ---------------- 未来启用 WebSocket 上游时才需要 ----------------
+# websockets==15.0.1
+
+# ================================================================
+# 已确认**未被本项目使用**，故移除（其中 sse-starlette 曾造成
+# “starlette>=0.49.1 与 fastapi 要求的 <0.42.0”依赖冲突）：
+#   sse-starlette    -- SSE 由 app/upstream/streaming.py 自行解析
+#   httpx-sse        -- 同上，未 import
+#   python-multipart -- 当前没有上传端点
+#   jinja2 / loguru  -- 未使用
+# ================================================================
+

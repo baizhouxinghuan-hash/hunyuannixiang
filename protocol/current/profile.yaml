@@ -1,0 +1,216 @@
+# ===========================================================================
+# AI Studio Web 协议档案（当前）
+# 状态：captured —— 已由真实抓包回填（captures/baseline，2026-09-17）
+# 规则：只写有证据的事实；没有证据的仍是 unknown，绝不猜测
+# ===========================================================================
+protocol_version: "1"
+status: captured
+generated_at: "2026-09-17"
+
+upstream:
+  base_url:
+    value: "https://api.hunyuan.tencent.com"
+    status: confirmed
+    evidence: "captures/baseline/requests.json（98 条记录全部走该域名）"
+    notes: >
+      阶段 1 从 bundle 推断的“同源 /api/**”是错的：前端用相对路径 /api/...，
+      但运行时是跨域调用 api.hunyuan.tencent.com，Origin 为 https://aistudio.tencent.com。
+  api_prefix:
+    value: "/api"
+    status: confirmed
+    evidence: "同上"
+
+auth:
+  type: cookie
+  status: confirmed
+  evidence: "captures/baseline/session.har（chat 请求带 cookie，无 Authorization 头）"
+  cookie_names:
+    - hunyuan_source
+    - hunyuan_token
+    - hunyuan_user
+  required_headers:
+    chat_version: "v1"
+    credentials: "include"
+    mode: "cors"
+    X-AgentID: "HunyuanDefault"
+    X-Requested-With: "XMLHttpRequest"
+    Origin: "https://aistudio.tencent.com"
+    Referer: "https://aistudio.tencent.com/"
+    Content-Type: "text/plain;charset=UTF-8"
+  signed:
+    value: false
+    status: partially_confirmed
+    evidence: "HAR 里请求头/请求体均无 nonce/signature/timestamp 字段"
+  notes: "Content-Type 固定为 text/plain;charset=UTF-8，但 body 实际是 JSON 字符串"
+
+endpoints:
+  create_conversation:
+    method: POST
+    path: "/api/new-portal/generate/id"
+    status: confirmed
+    evidence: "captures/baseline/requests.json#75（body {agentId,characterId,cloneId,forceNew:true} -> {id,isNew}）"
+  send_message:
+    method: POST
+    path: "/api/new-portal/chat/{conversation_id}"
+    status: confirmed
+    evidence: "captures/baseline/requests.json#82/#89 + session.har（响应 text/event-stream，含 type=text 正文增量）"
+  regenerate:
+    method: POST
+    path: "/api/new-portal/chat/repeat/{conversation_id}"
+    status: confirmed
+    evidence: "session.har（text/event-stream，事件序列与 send_message 相同）"
+  stop_generation:
+    method: POST
+    path: "/api/new-portal/stop/chat/{conversation_id}"
+    status: confirmed
+    evidence: "captures/baseline/requests.json（response application/json）"
+  history:
+    method: POST
+    path: "/api/new-portal/chat/conversation/list"
+    status: confirmed
+    evidence: "#67（body {limit,offset,modelTag} -> data[].id/chatModelId/agentId）"
+  models:
+    method: POST
+    path: "/api/new-portal/getChatConfig"
+    status: confirmed
+    evidence: "#73（body {chatModelId} -> modelId + chatConfig）"
+  user_info:
+    method: GET
+    path: "/api/new-portal/getuserinfo"
+    status: confirmed
+    evidence: "captures/baseline/requests.json（GET）"
+  upload:
+    method: null
+    path: null
+    status: unknown
+    evidence: "本次抓包未上传文件；getChatConfig 显示 fileUpload.enable=true"
+  message_detail:
+    method: null
+    path: null
+    status: unknown
+
+request_schema:
+  status: confirmed
+  # ⚠️ 本地适配策略（inferred）：上游 body 里没有 role/system/tools 字段（抓包确认只有
+  # prompt 字符串），因此 system（人格）与历史轮次由本代理渲染成文本放进 prompt。
+  # 取 full_history 表示"把 messages 交给本代理渲染"，仍不依赖上游会话记忆。
+  history_mode: full_history
+  system_mode: fold_into_user
+  passthrough_params: []
+  # 思考强度取值域（抓包确认）：字段名 effort 来自 send body；
+  # 取值来自 getChatConfig 响应的 thinkMode.options[].value —— 由 config.yaml: model.effort 控制
+  effort_options:
+    status: confirmed
+    values: ["no_think", "high"]
+    evidence: "captures/baseline/requests.json（getChatConfig: data.tabs.tabLanguage[].modelDetail.thinkMode.options）"
+  create_conversation_body:
+    agentId: "{agent_id}"
+    characterId: ""
+    cloneId: ""
+    forceNew: true
+  create_conversation_id_paths: ["$.id", "$.data.id"]
+  history_body_template:
+    limit: 40
+    offset: 0
+    modelTag: "all"
+  stop_body_template:
+    conversationId: "{conversation_id}"
+  body_template:
+    model: "gpt_175B_0404"
+    # prompt/displayPrompt 都用 messages_text：由本代理把「系统(人格) + 历史 + 当前提问(+工具说明)」
+    # 渲染成文本（上游只有 prompt 这一个字符串字段）。
+    # displayPrompt 也用它 -> AI Studio 网页端那条消息里能直接看到拼给模型的完整内容（便于核对）。
+    prompt: "{messages_text}"
+    plugin: "Adaptive"
+    displayPrompt: "{messages_text}"
+    displayPromptType: 1
+    quickThink: false
+    targetLang: ""
+    targetLangLabel: ""
+    sourceLang: ""
+    sourceLangLabel: ""
+    podcast:
+      voices: []
+    effort: "{effort}"
+    multimedia: []
+    agentId: "{agent_id}"
+    customParams:
+      temperature: 0.9
+      top_p: 1
+      repetition_penalty: 1
+      max_output_tokens: 65536
+    supportHint: 1
+    version: "v2"
+    chatModelId: "{model}"
+  notes: >
+    body_template 逐字段来自 captures/baseline；{prompt}/{model}/{agent_id} 为占位符。
+    model 字段是历史遗留的固定值 gpt_175B_0404，真正的模型选择是 chatModelId。
+
+response_schema:
+  status: unknown
+  notes: >
+    上游 chat 接口**只有流式**（text/event-stream），没有非流式响应体可抓。
+    因此非流式请求由本地聚合流式结果实现（AIStudioClient.send_message 内处理）。
+
+stream:
+  transport: sse
+  parser: sse
+  status: confirmed
+  evidence: >
+    session.har：Content-Type text/event-stream；事件序列
+    speech_type(thought) -> traceId -> thought x N -> thought(已深度思考,cost) ->
+    speech_type(text) -> text x N -> meta -> [DONE]
+  done_marker: "[DONE]"
+  type_field: "$.type"
+  type_map:
+    text: text
+    thought: reasoning
+    meta: meta
+    traceId: ignore
+    trace_id: ignore
+  event_map:
+    text: ["$.msg"]
+    reasoning: ["$.msg"]
+    conversation_id: ["$.conversationId"]
+    message_id: ["$.chatRecordId", "$.id"]
+    finish: ["$.finish_reason"]
+    usage: ["$.usage"]
+  event_name_map:
+    speech_type: ignore
+  notes: >
+    正文与思考共用 msg 字段，必须用 $.type 判别：type=text 是正文，type=thought 是思考过程。
+    event: speech_type 只是 TTS 提示，忽略。
+
+models:
+  hy4-preview: hy4-preview
+default_model: "hy4-preview"
+agent_id: "HunyuanDefault"
+
+features:
+  streaming: {value: true, status: confirmed, evidence: "text/event-stream"}
+  reasoning:
+    value: true
+    status: confirmed
+    evidence: "流内 type=thought 事件（title=思考中/已深度思考，cost=耗时）"
+  stop_generation: {value: true, status: confirmed, evidence: "POST /api/new-portal/stop/chat/{id}"}
+  multi_turn:
+    value: true
+    status: partially_confirmed
+    evidence: "会话列表存在多条会话；chat 请求只发最新 prompt + 路径带 conversation_id"
+  file_upload:
+    value: true
+    status: partially_confirmed
+    evidence: "getChatConfig.inputControl.fileUpload.enable=true（mediaType: ppt/doc/pdf/txt/md，单文件<=50MB，最多10个）"
+  web_search:
+    value: true
+    status: partially_confirmed
+    evidence: "getChatConfig.inputControl.networkSearch.enable=true；请求体 plugin=Adaptive"
+  image_input:
+    value: null
+    status: unknown
+    evidence: "getChatConfig.supportImageBackfill=false；未抓包到图片输入"
+  tool_calls: {value: null, status: unknown}
+
+notes: >
+  已由抓包确认可用：创建会话、发送消息（SSE 流式）、重新生成、停止生成、会话列表、
+  用户信息、模型配置。未抓包确认（保持 unknown）：文件上传、图片输入、工具调用、消息详情。

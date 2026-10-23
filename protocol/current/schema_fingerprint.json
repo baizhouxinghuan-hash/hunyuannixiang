@@ -1,0 +1,95 @@
+{
+  "fingerprint": {
+    "api_prefix": "/api",
+    "auth_type": "cookie",
+    "base_url": "https://api.hunyuan.tencent.com",
+    "endpoints": {
+      "create_conversation": {
+        "method": "POST",
+        "path": "/api/new-portal/generate/id"
+      },
+      "history": {
+        "method": "POST",
+        "path": "/api/new-portal/chat/conversation/list"
+      },
+      "message_detail": {
+        "method": null,
+        "path": null
+      },
+      "models": {
+        "method": "POST",
+        "path": "/api/new-portal/getChatConfig"
+      },
+      "regenerate": {
+        "method": "POST",
+        "path": "/api/new-portal/chat/repeat/{conversation_id}"
+      },
+      "send_message": {
+        "method": "POST",
+        "path": "/api/new-portal/chat/{conversation_id}"
+      },
+      "stop_generation": {
+        "method": "POST",
+        "path": "/api/new-portal/stop/chat/{conversation_id}"
+      },
+      "upload": {
+        "method": null,
+        "path": null
+      },
+      "user_info": {
+        "method": "GET",
+        "path": "/api/new-portal/getuserinfo"
+      }
+    },
+    "models": {
+      "hy4-preview": "hy4-preview"
+    },
+    "protocol_version": "1",
+    "request_schema_keys": [
+      "agentId",
+      "chatModelId",
+      "customParams",
+      "displayPrompt",
+      "displayPromptType",
+      "effort",
+      "model",
+      "multimedia",
+      "plugin",
+      "podcast",
+      "prompt",
+      "quickThink",
+      "sourceLang",
+      "sourceLangLabel",
+      "supportHint",
+      "targetLang",
+      "targetLangLabel",
+      "version"
+    ],
+    "required_headers": [
+      "Content-Type",
+      "Origin",
+      "Referer",
+      "X-AgentID",
+      "X-Requested-With",
+      "chat_version",
+      "credentials",
+      "mode"
+    ],
+    "response_schema_paths": {
+      "notes": "上游 chat 接口**只有流式**（text/event-stream），没有非流式响应体可抓。 因此非流式请求由本地聚合流式结果实现（AIStudioClient.send_message 内处理）。\n"
+    },
+    "stream": {
+      "event_map_keys": [
+        "conversation_id",
+        "finish",
+        "message_id",
+        "reasoning",
+        "text",
+        "usage"
+      ],
+      "parser": "sse",
+      "transport": "sse"
+    }
+  },
+  "fingerprint_hash": "36f2ab426394e6b5"
+}
